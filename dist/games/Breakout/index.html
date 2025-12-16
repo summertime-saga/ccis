@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Breakout</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #050505;
+      color: #e8e8e8;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #container {
+      position: relative;
+    }
+    #game {
+      background: #000;
+      border: 1px solid #222;
+      display: block;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+    }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d6d6d6;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #7dd6ff;
+      color: #050505;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(125,214,255,0.4);
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      font-size: 20px;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    #overlay.show {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div id="container">
+      <canvas id="game" width="640" height="480"></canvas>
+      <div id="overlay">Game Over - Click to Restart</div>
+    </div>
+    <div id="info">
+      Move the mouse to steer the paddle. Bounce the ball to break all the bricks. Ball speeds up when a full row is cleared. Miss the ball and it's game over. Click to restart anytime.<br>
+      Project of CCIS students
+      <br><a id="menu-link" href="../index.html">Go back to main menu</a>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const overlay = document.getElementById("overlay");
+
+    const paddle = { w: 100, h: 14, x: canvas.width / 2 - 50, y: canvas.height - 30 };
+    const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 8, vx: 200, vy: -220, speedMult: 1 };
+    const rows = 5, cols = 10;
+    const brick = { w: canvas.width / cols, h: 20, pad: 2 };
+    const colors = ["#ff4b4b", "#ff9f1c", "#ffd447", "#4ecdc4", "#5fa8ff"];
+    let bricks = [];
+    let alive = true;
+    let clearedRows = new Set();
+
+    function resetBricks() {
+      bricks = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          bricks.push({ x: c * brick.w + brick.pad, y: 40 + r * (brick.h + brick.pad), w: brick.w - brick.pad * 2, h: brick.h, color: colors[r] });
+        }
+      }
+      clearedRows.clear();
+    }
+
+    function resetGame() {
+      paddle.x = canvas.width / 2 - paddle.w / 2;
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      ball.vx = 200;
+      ball.vy = -220;
+      ball.speedMult = 1;
+      alive = true;
+      clearedRows = new Set();
+      resetBricks();
+      overlay.classList.remove("show");
+    }
+
+    canvas.addEventListener("mousemove", e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      paddle.x = Math.min(canvas.width - paddle.w, Math.max(0, mx - paddle.w / 2));
+    });
+
+    canvas.addEventListener("click", () => {
+      if (!alive) resetGame();
+    });
+
+    function update(dt) {
+      if (!alive) return;
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+
+      if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) ball.vx *= -1;
+      if (ball.y - ball.r < 0) ball.vy *= -1;
+      if (ball.y - ball.r > canvas.height) {
+        alive = false;
+        overlay.classList.add("show");
+        return;
+      }
+
+      if (ball.y + ball.r >= paddle.y && ball.y - ball.r <= paddle.y + paddle.h && ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
+        ball.vy = -Math.abs(ball.vy);
+        const hitPos = (ball.x - paddle.x) / paddle.w - 0.5;
+        ball.vx = (200 + Math.abs(ball.vy) * 0.2) * hitPos * 2;
+      }
+
+      let newlyCleared = 0;
+      for (let i = bricks.length - 1; i >= 0; i--) {
+        const b = bricks[i];
+        if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w && ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+          bricks.splice(i, 1);
+          ball.vy *= -1;
+        }
+      }
+
+      // Detect newly cleared rows
+      for (let r = 0; r < rows; r++) {
+        const yStart = 40 + r * (brick.h + brick.pad);
+        const exists = bricks.some(b => b.y === yStart);
+        if (!exists && !clearedRows.has(r)) {
+          clearedRows.add(r);
+          newlyCleared++;
+        }
+      }
+      if (newlyCleared > 0) {
+        ball.vx *= 1 + newlyCleared * 0.05;
+        ball.vy *= 1 + newlyCleared * 0.05;
+      }
+      if (bricks.length === 0) resetBricks();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      bricks.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+      });
+    }
+
+    let last = 0;
+    function loop(ts) {
+      if (!last) last = ts;
+      const dt = Math.min((ts - last) / 1000, 0.05);
+      last = ts;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

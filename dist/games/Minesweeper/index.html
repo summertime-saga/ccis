@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minesweeper</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #0c1018;
+      color: #e8ecf4;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(10, 36px);
+      grid-template-rows: repeat(10, 36px);
+      gap: 4px;
+      padding: 6px;
+      background: #0f1725;
+      border: 1px solid #1f2b3a;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.35);
+    }
+    .cell {
+      width: 36px;
+      height: 36px;
+      background: #1b2a3d;
+      border: 1px solid #23354a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e8ecf4;
+      cursor: pointer;
+      user-select: none;
+      font-weight: bold;
+    }
+    .cell.revealed {
+      background: #102033;
+      border-color: #1f3350;
+      cursor: default;
+    }
+    .cell.mine { background: #ff4b4b; color: #fff; }
+    .cell.flag { background: #b23b3b; color: #fff; }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d6deff;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #7dd6ff;
+      color: #0c111a;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(125,214,255,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div id="board"></div>
+    <div id="info">
+      Left click to reveal. Right click to flag a mine. Empty cells flood fill. Avoid the 10 hidden mines! Refresh to start a new board.<br>
+      Project of CCIS students
+      <br><a id="menu-link" href="../index.html">Go back to main menu</a>
+    </div>
+  </div>
+
+  <script>
+    const boardEl = document.getElementById("board");
+    const size = 10;
+    const mines = 10;
+    const cells = [];
+
+    function init() {
+      boardEl.innerHTML = "";
+      cells.length = 0;
+      for (let r = 0; r < size; r++) {
+        const row = [];
+        for (let c = 0; c < size; c++) {
+          const div = document.createElement("div");
+          div.className = "cell";
+          div.dataset.r = r;
+          div.dataset.c = c;
+          div.addEventListener("click", onReveal);
+          div.addEventListener("contextmenu", onFlag);
+          boardEl.appendChild(div);
+          row.push({ mine: false, revealed: false, flagged: false, n: 0, el: div });
+        }
+        cells.push(row);
+      }
+      placeMines();
+      calcNumbers();
+    }
+
+    function placeMines() {
+      let placed = 0;
+      while (placed < mines) {
+        const r = Math.floor(Math.random() * size);
+        const c = Math.floor(Math.random() * size);
+        if (!cells[r][c].mine) {
+          cells[r][c].mine = true;
+          placed++;
+        }
+      }
+    }
+
+    function calcNumbers() {
+      const dirs = [-1, 0, 1];
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (cells[r][c].mine) continue;
+          let count = 0;
+          dirs.forEach(dr => dirs.forEach(dc => {
+            if (dr === 0 && dc === 0) return;
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size && cells[nr][nc].mine) count++;
+          }));
+          cells[r][c].n = count;
+        }
+      }
+    }
+
+    function onFlag(e) {
+      e.preventDefault();
+      const cell = getCell(e.currentTarget);
+      if (cell.revealed) return;
+      cell.flagged = !cell.flagged;
+      cell.el.classList.toggle("flag", cell.flagged);
+      cell.el.textContent = cell.flagged ? "⚑" : "";
+    }
+
+    function onReveal(e) {
+      const cell = getCell(e.currentTarget);
+      if (cell.revealed || cell.flagged) return;
+      revealCell(cell);
+      checkWin();
+    }
+
+    function revealCell(cell) {
+      if (cell.revealed) return;
+      cell.revealed = true;
+      cell.el.classList.add("revealed");
+      if (cell.mine) {
+        cell.el.classList.add("mine");
+        cell.el.textContent = "💣";
+        revealAllMines();
+        setTimeout(() => alert("Game Over!"), 50);
+        return;
+      }
+      if (cell.n > 0) {
+        cell.el.textContent = cell.n;
+      } else {
+        flood(cell);
+      }
+    }
+
+    function flood(start) {
+      const q = [start];
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+      while (q.length) {
+        const cell = q.shift();
+        dirs.forEach(([dr, dc]) => {
+          const nr = Number(cell.el.dataset.r) + dr;
+          const nc = Number(cell.el.dataset.c) + dc;
+          if (nr < 0 || nr >= size || nc < 0 || nc >= size) return;
+          const nCell = cells[nr][nc];
+          if (nCell.revealed || nCell.flagged || nCell.mine) return;
+          nCell.revealed = true;
+          nCell.el.classList.add("revealed");
+          if (nCell.n > 0) {
+            nCell.el.textContent = nCell.n;
+          } else {
+            q.push(nCell);
+          }
+        });
+      }
+    }
+
+    function revealAllMines() {
+      cells.flat().forEach(cell => {
+        if (cell.mine) {
+          cell.el.classList.add("mine", "revealed");
+          cell.el.textContent = "💣";
+        }
+      });
+      boardEl.querySelectorAll(".cell").forEach(el => el.removeEventListener("click", onReveal));
+    }
+
+    function checkWin() {
+      const safeLeft = cells.flat().filter(c => !c.mine && !c.revealed).length;
+      if (safeLeft === 0) {
+        setTimeout(() => alert("You cleared the board!"), 50);
+      }
+    }
+
+    function getCell(el) {
+      const r = Number(el.dataset.r);
+      const c = Number(el.dataset.c);
+      return cells[r][c];
+    }
+
+    init();
+  </script>
+</body>
+</html>

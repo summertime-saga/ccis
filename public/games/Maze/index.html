@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maze Generator</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #0f0f0f;
+      color: #e6e6e6;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #game {
+      background: #111;
+      border: 1px solid #222;
+      display: block;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+    }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d1d1d1;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #28a745;
+      color: #0f0f0f;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(40,167,69,0.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <canvas id="game" width="400" height="400"></canvas>
+    <div id="info">
+      Navigate the red dot from top-left to the green goal at bottom-right. Use Arrow keys; walls block movement. Maze is generated with DFS each load.<br>
+      Project of CCIS students
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const rows = 20, cols = 20;
+    const cell = canvas.width / cols;
+    const maze = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+    function generateMaze() {
+      const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+      const stack = [[0, 0]];
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+
+      while (stack.length) {
+        const [r, c] = stack.pop();
+        visited[r][c] = true;
+        dirs.sort(() => Math.random() - 0.5);
+        for (const [dr, dc] of dirs) {
+          const nr = r + dr * 2, nc = c + dc * 2;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc]) {
+            maze[r + dr][c + dc] = 1; // open passage
+            maze[nr][nc] = 1;
+            stack.push([nr, nc]);
+          }
+        }
+      }
+      maze[0][0] = 1;
+      maze[rows - 1][cols - 1] = 1;
+    }
+
+    const player = { r: 0, c: 0 };
+    const goal = { r: rows - 1, c: cols - 1 };
+
+    document.addEventListener("keydown", e => {
+      const moves = { ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1] };
+      if (!moves[e.code]) return;
+      const [dr, dc] = moves[e.code];
+      const nr = player.r + dr;
+      const nc = player.c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && maze[nr][nc]) {
+        player.r = nr;
+        player.c = nc;
+        if (player.r === goal.r && player.c === goal.c) {
+          setTimeout(() => alert("You reached the goal!"), 20);
+        }
+      }
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (maze[r][c]) continue;
+          ctx.fillStyle = "#111";
+          ctx.fillRect(c * cell, r * cell, cell, cell);
+        }
+      }
+      ctx.fillStyle = "#28a745";
+      ctx.fillRect(goal.c * cell + cell * 0.2, goal.r * cell + cell * 0.2, cell * 0.6, cell * 0.6);
+
+      ctx.fillStyle = "#ff4136";
+      ctx.beginPath();
+      ctx.arc(player.c * cell + cell / 2, player.r * cell + cell / 2, cell * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      requestAnimationFrame(draw);
+    }
+
+    generateMaze();
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>

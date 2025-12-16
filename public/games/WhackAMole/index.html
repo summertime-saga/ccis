@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whack-a-Mole</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #14213d;
+      color: #e5e5e5;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(3, 120px);
+      grid-template-rows: repeat(3, 120px);
+      gap: 12px;
+    }
+    .hole {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #0b1323;
+      border: 3px solid #1f2a44;
+      box-shadow: inset 0 8px 12px rgba(0,0,0,0.5);
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .hole.active {
+      background: #8b5a2b;
+      transform: translateY(-4px);
+    }
+    #hud {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d4ddff;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #fca311;
+      color: #14213d;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(252,163,17,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div>
+      <div id="hud">Score: <span id="score">0</span> | Time: <span id="time">30</span>s</div>
+      <div id="grid"></div>
+    </div>
+    <div id="info">
+      Every 800ms a random hole turns active. Click active holes to score +1; clicking inactive holes deducts 1. You have 30 seconds—highest score wins.<br>
+      Project of CCIS students
+    </div>
+  </div>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const scoreEl = document.getElementById("score");
+    const timeEl = document.getElementById("time");
+    let holes = [];
+    let score = 0;
+    let timer = 30;
+    let intervalId;
+    let gameInterval;
+
+    function setup() {
+      grid.innerHTML = "";
+      holes = [];
+      for (let i = 0; i < 9; i++) {
+        const div = document.createElement("div");
+        div.className = "hole";
+        div.addEventListener("click", () => handleClick(div));
+        grid.appendChild(div);
+        holes.push(div);
+      }
+      score = 0;
+      timer = 30;
+      scoreEl.textContent = score;
+      timeEl.textContent = timer;
+      clearIntervals();
+      gameInterval = setInterval(randomHole, 800);
+      intervalId = setInterval(countdown, 1000);
+    }
+
+    function randomHole() {
+      holes.forEach(h => h.classList.remove("active"));
+      const idx = Math.floor(Math.random() * holes.length);
+      holes[idx].classList.add("active");
+      setTimeout(() => holes[idx].classList.remove("active"), 500);
+    }
+
+    function handleClick(div) {
+      if (timer <= 0) return;
+      if (div.classList.contains("active")) {
+        score += 1;
+      } else {
+        score = Math.max(0, score - 1);
+      }
+      scoreEl.textContent = score;
+    }
+
+    function countdown() {
+      timer -= 1;
+      timeEl.textContent = timer;
+      if (timer <= 0) {
+        clearIntervals();
+        holes.forEach(h => h.classList.remove("active"));
+        alert(`Time! Final score: ${score}`);
+      }
+    }
+
+    function clearIntervals() {
+      if (intervalId) clearInterval(intervalId);
+      if (gameInterval) clearInterval(gameInterval);
+    }
+
+    setup();
+  </script>
+</body>
+</html>

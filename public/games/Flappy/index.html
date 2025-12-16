@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Square</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+      background: linear-gradient(180deg, #4fa3ff 0%, #a3d8ff 60%, #8ed9b0 100%);
+      font-family: "Courier New", monospace;
+      color: #0d1b2a;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #container {
+      position: relative;
+    }
+    #game {
+      background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.16) 100%);
+      border: 2px solid #0d1b2a22;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      display: block;
+    }
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 16px;
+      text-shadow: 0 0 10px rgba(255,255,255,0.4);
+      user-select: none;
+      pointer-events: none;
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: 20px;
+      text-align: center;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    #overlay.show {
+      visibility: visible;
+      opacity: 1;
+    }
+    button {
+      margin-top: 12px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-family: "Courier New", monospace;
+      background: #ffdd57;
+      color: #0d1b2a;
+      cursor: pointer;
+      box-shadow: 0 8px 14px rgba(0,0,0,0.25);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 16px rgba(0,0,0,0.28); }
+    button:active { transform: translateY(1px); }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      color: #0d1b2a;
+      text-shadow: 0 0 8px rgba(255,255,255,0.3);
+      line-height: 1.5;
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #ffd447;
+      color: #0d1b2a;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(255, 212, 71, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div id="container">
+      <canvas id="game" width="480" height="720"></canvas>
+      <div id="hud">Score: <span id="score">0</span></div>
+      <div id="overlay">
+        <div>
+          <div id="over-text">Game Over</div>
+          <div>Final Score: <span id="final-score">0</span></div>
+          <button id="restart">Restart</button>
+        </div>
+      </div>
+    </div>
+    <div id="info">
+      Click or press Space to flap upward, glide through the gaps, and avoid pipes or the ground/ceiling. Score +1 per pipe passed.<br>
+      Project of CCIS students
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const finalScoreEl = document.getElementById("final-score");
+    const overlay = document.getElementById("overlay");
+    const restartBtn = document.getElementById("restart");
+
+    const player = {
+      x: 120,
+      y: canvas.height / 2,
+      size: 32,
+      vy: 0
+    };
+    const gravity = 900;      // px/s^2
+    const jumpStrength = -320;// px/s impulse
+    const pipes = [];
+    let spawnTimer = 0;
+    let spawnInterval = 1.5;  // seconds
+    const pipeGap = 170;
+    const pipeWidth = 80;
+    const pipeSpeed = 200;    // px/s
+
+    let score = 0;
+    let lastTime = 0;
+    let alive = true;
+
+    function resetGame() {
+      player.y = canvas.height / 2;
+      player.vy = 0;
+      pipes.length = 0;
+      score = 0;
+      scoreEl.textContent = score;
+      spawnTimer = 0;
+      lastTime = performance.now();
+      alive = true;
+      overlay.classList.remove("show");
+    }
+
+    function spawnPipe() {
+      const margin = 80;
+      const gapY = margin + Math.random() * (canvas.height - margin * 2 - pipeGap);
+      pipes.push({
+        x: canvas.width + pipeWidth,
+        gapY
+      });
+    }
+
+    function flap() {
+      if (!alive) return;
+      player.vy = jumpStrength;
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        flap();
+      }
+      if (e.code === "KeyR" && !alive) resetGame();
+    });
+
+    canvas.addEventListener("mousedown", flap);
+
+    function update(dt) {
+      if (!alive) return;
+
+      player.vy += gravity * dt;
+      player.y += player.vy * dt;
+
+      // Pipes
+      spawnTimer += dt;
+      if (spawnTimer >= spawnInterval) {
+        spawnPipe();
+        spawnTimer = 0;
+      }
+
+      for (let i = pipes.length - 1; i >= 0; i--) {
+        const p = pipes[i];
+        p.x -= pipeSpeed * dt;
+        if (p.x + pipeWidth < 0) {
+          pipes.splice(i, 1);
+          continue;
+        }
+      }
+
+      checkCollisionsAndScore();
+    }
+
+    function checkCollisionsAndScore() {
+      // Floor/ceiling
+      if (player.y + player.size / 2 >= canvas.height || player.y - player.size / 2 <= 0) {
+        return gameOver();
+      }
+
+      pipes.forEach(p => {
+        const withinX = player.x + player.size / 2 >= p.x && player.x - player.size / 2 <= p.x + pipeWidth;
+        const inGap = player.y - player.size / 2 > p.gapY && player.y + player.size / 2 < p.gapY + pipeGap;
+        if (withinX && !inGap) {
+          gameOver();
+        }
+      });
+
+      // Scoring: when pipe center crosses player x
+      for (const p of pipes) {
+        if (!p.scored && p.x + pipeWidth < player.x - player.size / 2) {
+          p.scored = true;
+          score += 1;
+          scoreEl.textContent = score;
+        }
+      }
+    }
+
+    function gameOver() {
+      if (!alive) return;
+      alive = false;
+      finalScoreEl.textContent = score;
+      overlay.classList.add("show");
+    }
+
+    function drawBackground() {
+      // Simple ground line
+      ctx.fillStyle = "#74c69d";
+      ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = "#ffd447";
+      ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
+    }
+
+    function drawPipes() {
+      ctx.fillStyle = "#36b37e";
+      pipes.forEach(p => {
+        // Top pipe
+        ctx.fillRect(p.x, 0, pipeWidth, p.gapY);
+        // Bottom pipe
+        ctx.fillRect(p.x, p.gapY + pipeGap, pipeWidth, canvas.height - (p.gapY + pipeGap));
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawPipes();
+      drawPlayer();
+    }
+
+    function loop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+      lastTime = timestamp;
+
+      update(dt);
+      draw();
+
+      requestAnimationFrame(loop);
+    }
+
+    restartBtn.addEventListener("click", resetGame);
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

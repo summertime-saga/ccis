@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simon Says</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #0f1626;
+      color: #e8ecf4;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #board {
+      width: 320px;
+      height: 320px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .pad {
+      border-radius: 16px;
+      opacity: 0.7;
+      transition: opacity 0.1s ease;
+      cursor: pointer;
+    }
+    .pad.active { opacity: 1; }
+    .red { background: #e63946; }
+    .blue { background: #457b9d; }
+    .green { background: #2a9d8f; }
+    .yellow { background: #ffd447; }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #dbe6ff;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #status { margin-top: 8px; }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #ffd447;
+      color: #0f1626;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(255,212,71,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div>
+      <div id="board"></div>
+      <div id="status">Press any pad to start.</div>
+    </div>
+    <div id="info">
+      Watch the sequence of lights and repeat it. Each round adds one more step. Click the colored pads in order. Wrong input flashes red and restarts the game.<br>
+      Project of CCIS students
+      <br><a id="menu-link" href="../index.html">Go back to main menu</a>
+    </div>
+  </div>
+
+  <script>
+    const board = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+    const colors = ["red", "blue", "green", "yellow"];
+    const pads = [];
+    let sequence = [];
+    let playerIndex = 0;
+    let playingBack = false;
+
+    function createPads() {
+      colors.forEach(color => {
+        const div = document.createElement("div");
+        div.className = `pad ${color}`;
+        div.addEventListener("click", () => handlePad(color));
+        board.appendChild(div);
+        pads.push(div);
+      });
+    }
+
+    function flash(color, delay) {
+      const pad = pads[colors.indexOf(color)];
+      setTimeout(() => {
+        pad.classList.add("active");
+        setTimeout(() => pad.classList.remove("active"), 300);
+      }, delay);
+    }
+
+    function playSequence() {
+      playingBack = true;
+      statusEl.textContent = `Round ${sequence.length}`;
+      sequence.forEach((color, idx) => flash(color, idx * 500));
+      setTimeout(() => { playingBack = false; playerIndex = 0; }, sequence.length * 500 + 400);
+    }
+
+    function nextRound() {
+      sequence.push(colors[Math.floor(Math.random() * colors.length)]);
+      playSequence();
+    }
+
+    function handlePad(color) {
+      if (playingBack && sequence.length) return;
+      if (!sequence.length) {
+        sequence.push(colors[Math.floor(Math.random() * colors.length)]);
+        playSequence();
+        return;
+      }
+      flash(color, 0);
+      if (color === sequence[playerIndex]) {
+        playerIndex++;
+        if (playerIndex >= sequence.length) {
+          setTimeout(nextRound, 500);
+        }
+      } else {
+        document.body.style.background = "#4b0000";
+        setTimeout(() => document.body.style.background = "#0f1626", 150);
+        statusEl.textContent = "Wrong! Restarting...";
+        sequence = [];
+        playerIndex = 0;
+        setTimeout(() => statusEl.textContent = "Press any pad to start.", 600);
+      }
+    }
+
+    createPads();
+    statusEl.textContent = "Press any pad to start.";
+  </script>
+</body>
+</html>

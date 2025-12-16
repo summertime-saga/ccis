@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cookie Clicker Clone</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #1b1325;
+      color: #f4e9ff;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #game {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, #3a2551, #1f132f);
+      border: 2px solid #462a6b;
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+      cursor: pointer;
+      font-size: 20px;
+      text-align: center;
+      padding: 16px;
+    }
+    #shop {
+      width: 240px;
+      background: #241730;
+      border: 1px solid #3b2c4d;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    .upgrade {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      margin-bottom: 8px;
+      background: #2f203f;
+      border: 1px solid #47315f;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .upgrade:hover { background: #3a2950; }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d9c9ff;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #8ef4ff;
+      color: #1b1325;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(142,244,255,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div>
+      <div id="game">Click to earn Gold<br><br>Gold: <span id="gold">0</span><br>GPS: <span id="gps">0</span></div>
+    </div>
+    <div id="shop"></div>
+    <div id="info">
+      Click the center panel for +1 Gold. Buy upgrades for passive Gold Per Second: Auto-Clicker (+1/sec), Miner (+5/sec), Factory (+20/sec). Costs rise as you buy more.<br>
+      Project of CCIS students
+    </div>
+  </div>
+
+  <script>
+    const goldEl = document.getElementById("gold");
+    const gpsEl = document.getElementById("gps");
+    const gameEl = document.getElementById("game");
+    const shopEl = document.getElementById("shop");
+
+    let gold = 0;
+    const upgrades = [
+      { name: "Auto-Clicker", baseCost: 50, rate: 1, owned: 0 },
+      { name: "Miner", baseCost: 200, rate: 5, owned: 0 },
+      { name: "Factory", baseCost: 1000, rate: 20, owned: 0 }
+    ];
+
+    function currentCost(u) {
+      return Math.floor(u.baseCost * Math.pow(1.15, u.owned));
+    }
+
+    function renderShop() {
+      shopEl.innerHTML = "<h3>Shop</h3>";
+      upgrades.forEach((u, idx) => {
+        const div = document.createElement("div");
+        div.className = "upgrade";
+        div.innerHTML = `<span>${u.name} (${u.owned})</span><span>${currentCost(u)}g</span>`;
+        div.addEventListener("click", () => buy(idx));
+        shopEl.appendChild(div);
+      });
+    }
+
+    function buy(i) {
+      const u = upgrades[i];
+      const cost = currentCost(u);
+      if (gold >= cost) {
+        gold -= cost;
+        u.owned++;
+        updateGold();
+        renderShop();
+      }
+    }
+
+    function updateGold() {
+      goldEl.textContent = gold;
+      gpsEl.textContent = gps().toFixed(1);
+    }
+
+    function gps() {
+      return upgrades.reduce((sum, u) => sum + u.rate * u.owned, 0);
+    }
+
+    function tick() {
+      gold += gps() / 10;
+      updateGold();
+    }
+
+    gameEl.addEventListener("click", () => {
+      gold += 1;
+      updateGold();
+    });
+
+    renderShop();
+    updateGold();
+    setInterval(tick, 100);
+  </script>
+</body>
+</html>

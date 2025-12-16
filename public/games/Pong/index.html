@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong vs AI</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #0a0f1a;
+      color: #e8ecf4;
+      font-family: "Courier New", monospace;
+    }
+    .layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #container { position: relative; }
+    #game {
+      background: #111725;
+      border: 1px solid #1f2b3d;
+      display: block;
+    }
+    #info {
+      max-width: 240px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #d6deff;
+      text-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    #score {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      user-select: none;
+      pointer-events: none;
+    }
+    #menu-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #7dd6ff;
+      color: #0a0f1a;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(125,214,255,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div id="container">
+      <canvas id="game" width="640" height="360"></canvas>
+      <div id="score">0 - 0</div>
+    </div>
+    <div id="info">
+      Player moves left paddle with W/S keys. Right paddle is an AI that chases the ball with a slight delay. First to keep the ball in play scores when the opponent misses; ball resets center each point.<br>
+      Project of CCIS students
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const keys = { w: false, s: false };
+
+    const paddleH = 70, paddleW = 12;
+    const player = { x: 20, y: canvas.height / 2 - paddleH / 2, speed: 260 };
+    const ai = { x: canvas.width - 32, y: canvas.height / 2 - paddleH / 2, speed: 240 };
+    const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 7, vx: 220, vy: 160 };
+    const score = { player: 0, ai: 0 };
+
+    document.addEventListener("keydown", e => {
+      if (e.code === "KeyW") keys.w = true;
+      if (e.code === "KeyS") keys.s = true;
+    });
+    document.addEventListener("keyup", e => {
+      if (e.code === "KeyW") keys.w = false;
+      if (e.code === "KeyS") keys.s = false;
+    });
+
+    function resetBall(direction = Math.random() > 0.5 ? 1 : -1) {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      ball.vx = 220 * direction;
+      ball.vy = (Math.random() * 2 - 1) * 160;
+    }
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function update(dt) {
+      // Player
+      const dir = (keys.w ? -1 : 0) + (keys.s ? 1 : 0);
+      player.y = clamp(player.y + dir * player.speed * dt, 0, canvas.height - paddleH);
+
+      // AI follows ball with lag
+      const target = ball.y - paddleH / 2;
+      if (target > ai.y + 8) ai.y += ai.speed * dt;
+      else if (target < ai.y - 8) ai.y -= ai.speed * dt;
+      ai.y = clamp(ai.y, 0, canvas.height - paddleH);
+
+      // Ball
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+
+      if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) ball.vy *= -1;
+
+      // Collisions
+      function hitPaddle(px, py) {
+        return ball.x - ball.r < px + paddleW && ball.x + ball.r > px &&
+               ball.y + ball.r > py && ball.y - ball.r < py + paddleH;
+      }
+      if (ball.vx < 0 && hitPaddle(player.x, player.y)) {
+        ball.vx = Math.abs(ball.vx) * 1.03;
+        const offset = (ball.y - (player.y + paddleH / 2)) / (paddleH / 2);
+        ball.vy = offset * 200;
+      }
+      if (ball.vx > 0 && hitPaddle(ai.x, ai.y)) {
+        ball.vx = -Math.abs(ball.vx) * 1.03;
+        const offset = (ball.y - (ai.y + paddleH / 2)) / (paddleH / 2);
+        ball.vy = offset * 200;
+      }
+
+      // Scoring
+      if (ball.x < 0) {
+        score.ai += 1;
+        scoreEl.textContent = `${score.player} - ${score.ai}`;
+        resetBall(1);
+      } else if (ball.x > canvas.width) {
+        score.player += 1;
+        scoreEl.textContent = `${score.player} - ${score.ai}`;
+        resetBall(-1);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#0f1a2b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "#1f375b";
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(player.x, player.y, paddleW, paddleH);
+      ctx.fillRect(ai.x, ai.y, paddleW, paddleH);
+
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    let last = 0;
+    function loop(ts) {
+      if (!last) last = ts;
+      const dt = Math.min((ts - last) / 1000, 0.05);
+      last = ts;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    resetBall();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
