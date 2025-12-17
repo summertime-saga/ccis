@@ -52,6 +52,44 @@
       text-shadow: 0 0 6px rgba(255,255,255,0.2);
     }
     #status { margin-top: 8px; }
+    #stats {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #1d2a45;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    #score,
+    #best {
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+    #best {
+      margin-top: 6px;
+      color: #ffd447;
+    }
+    #leaderboard {
+      margin-top: 12px;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #9fb0d8;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+    #leaderboard-list li {
+      margin-bottom: 4px;
+    }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9fb0d8;
+    }
     #menu-link {
       display: inline-block;
       margin-top: 12px;
@@ -74,17 +112,104 @@
     <div id="info">
       Watch the sequence of lights and repeat it. Each round adds one more step. Click the colored pads in order. Wrong input flashes red and restarts the game.<br>
       Project of CCIS students
+      <div id="stats">
+        <div id="score">Score: 0</div>
+        <div id="best">Best: 0</div>
+        <div id="leaderboard">
+          <div class="label">Leaderboard</div>
+          <ol id="leaderboard-list"></ol>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
     const board = document.getElementById("board");
     const statusEl = document.getElementById("status");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+    const leaderboardKey = "simonSaysLeaderboard";
+    const nameKey = "simonSaysPlayerName";
     const colors = ["red", "blue", "green", "yellow"];
     const pads = [];
     let sequence = [];
     let playerIndex = 0;
     let playingBack = false;
+    let score = 0;
+    let leaderboard = [];
+
+    function loadLeaderboard() {
+      try {
+        const raw = localStorage.getItem(leaderboardKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        leaderboard = Array.isArray(parsed)
+          ? parsed
+              .map(entry => {
+                if (typeof entry === "number") return { name: "Player", score: entry };
+                if (!entry || typeof entry !== "object") return null;
+                const name = typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : "Player";
+                const value = Number(entry.score);
+                return Number.isFinite(value) ? { name, score: value } : null;
+              })
+              .filter(Boolean)
+          : [];
+      } catch (err) {
+        leaderboard = [];
+      }
+      leaderboard.sort((a, b) => b.score - a.score);
+    }
+
+    function saveLeaderboard() {
+      try {
+        localStorage.setItem(leaderboardKey, JSON.stringify(leaderboard));
+      } catch (err) {
+        // Ignore storage errors to keep the game running.
+      }
+    }
+
+    function renderLeaderboard() {
+      leaderboardListEl.innerHTML = "";
+      if (!leaderboard.length) {
+        const empty = document.createElement("li");
+        empty.textContent = "No scores yet";
+        empty.className = "empty";
+        leaderboardListEl.appendChild(empty);
+        return;
+      }
+      leaderboard.slice(0, 5).forEach(entry => {
+        const li = document.createElement("li");
+        li.textContent = `${entry.name} - ${entry.score}`;
+        leaderboardListEl.appendChild(li);
+      });
+    }
+
+    function updateScoreDisplay() {
+      scoreEl.textContent = `Score: ${score}`;
+      bestEl.textContent = `Best: ${leaderboard[0]?.score || 0}`;
+      renderLeaderboard();
+    }
+
+    function getPlayerName() {
+      const lastName = localStorage.getItem(nameKey) || "";
+      const input = window.prompt("Enter your name for the leaderboard:", lastName);
+      const name = input ? input.trim() : "";
+      if (name) {
+        localStorage.setItem(nameKey, name);
+        return name;
+      }
+      return "Player";
+    }
+
+    function recordScore() {
+      if (score <= 0) return;
+      const name = getPlayerName();
+      leaderboard.push({ name, score });
+      leaderboard.sort((a, b) => b.score - a.score);
+      leaderboard = leaderboard.slice(0, 5);
+      saveLeaderboard();
+      updateScoreDisplay();
+    }
 
     function createPads() {
       colors.forEach(color => {
@@ -111,6 +236,14 @@
       setTimeout(() => { playingBack = false; playerIndex = 0; }, sequence.length * 500 + 400);
     }
 
+    function startGame() {
+      sequence = [];
+      playerIndex = 0;
+      score = 0;
+      updateScoreDisplay();
+      nextRound();
+    }
+
     function nextRound() {
       sequence.push(colors[Math.floor(Math.random() * colors.length)]);
       playSequence();
@@ -119,27 +252,33 @@
     function handlePad(color) {
       if (playingBack && sequence.length) return;
       if (!sequence.length) {
-        sequence.push(colors[Math.floor(Math.random() * colors.length)]);
-        playSequence();
+        startGame();
         return;
       }
       flash(color, 0);
       if (color === sequence[playerIndex]) {
         playerIndex++;
         if (playerIndex >= sequence.length) {
+          score = sequence.length;
+          updateScoreDisplay();
           setTimeout(nextRound, 500);
         }
       } else {
         document.body.style.background = "#4b0000";
         setTimeout(() => document.body.style.background = "#0f1626", 150);
         statusEl.textContent = "Wrong! Restarting...";
+        recordScore();
         sequence = [];
         playerIndex = 0;
+        score = 0;
+        updateScoreDisplay();
         setTimeout(() => statusEl.textContent = "Press any pad to start.", 600);
       }
     }
 
     createPads();
+    loadLeaderboard();
+    updateScoreDisplay();
     statusEl.textContent = "Press any pad to start.";
   </script>
 </body>
