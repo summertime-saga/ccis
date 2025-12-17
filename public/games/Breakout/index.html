@@ -41,6 +41,44 @@
       color: #d6d6d6;
       text-shadow: 0 0 6px rgba(255,255,255,0.2);
     }
+    #stats {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #1f1f1f;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    #score,
+    #best {
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+    #best {
+      margin-top: 6px;
+      color: #ffd447;
+    }
+    #leaderboard {
+      margin-top: 12px;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #a5a5a5;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+    #leaderboard-list li {
+      margin-bottom: 4px;
+    }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9a9a9a;
+    }
     #menu-link {
       display: inline-block;
       margin-top: 12px;
@@ -74,11 +112,19 @@
   <div class="layout">
     <div id="container">
       <canvas id="game" width="640" height="480"></canvas>
-      <div id="overlay">Game Over - Click to Restart</div>
+      <div id="overlay">Game Over - Click to Restart or Press R</div>
     </div>
     <div id="info">
       Move the mouse to steer the paddle. Bounce the ball to break all the bricks. Ball speeds up when a full row is cleared. Miss the ball and it's game over. Click to restart anytime.<br>
       Project of CCIS students
+      <div id="stats">
+        <div id="score">Score: 0</div>
+        <div id="best">Best: 0</div>
+        <div id="leaderboard">
+          <div class="label">Leaderboard</div>
+          <ol id="leaderboard-list"></ol>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -86,6 +132,11 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+    const leaderboardKey = "breakoutLeaderboard";
+    const nameKey = "breakoutPlayerName";
 
     const paddle = { w: 100, h: 14, x: canvas.width / 2 - 50, y: canvas.height - 30 };
     const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 8, vx: 200, vy: -220, speedMult: 1 };
@@ -95,6 +146,79 @@
     let bricks = [];
     let alive = true;
     let clearedRows = new Set();
+    let score = 0;
+    let leaderboard = [];
+
+    function loadLeaderboard() {
+      try {
+        const raw = localStorage.getItem(leaderboardKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        leaderboard = Array.isArray(parsed)
+          ? parsed
+              .map(entry => {
+                if (typeof entry === "number") return { name: "Player", score: entry };
+                if (!entry || typeof entry !== "object") return null;
+                const name = typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : "Player";
+                const score = Number(entry.score);
+                return Number.isFinite(score) ? { name, score } : null;
+              })
+              .filter(Boolean)
+          : [];
+      } catch (err) {
+        leaderboard = [];
+      }
+      leaderboard.sort((a, b) => b.score - a.score);
+    }
+
+    function saveLeaderboard() {
+      try {
+        localStorage.setItem(leaderboardKey, JSON.stringify(leaderboard));
+      } catch (err) {
+        // Ignore storage errors to keep the game running.
+      }
+    }
+
+    function renderLeaderboard() {
+      leaderboardListEl.innerHTML = "";
+      if (!leaderboard.length) {
+        const empty = document.createElement("li");
+        empty.textContent = "No scores yet";
+        empty.className = "empty";
+        leaderboardListEl.appendChild(empty);
+        return;
+      }
+      leaderboard.slice(0, 5).forEach(value => {
+        const li = document.createElement("li");
+        li.textContent = `${value.name} - ${value.score}`;
+        leaderboardListEl.appendChild(li);
+      });
+    }
+
+    function updateScoreDisplay() {
+      scoreEl.textContent = `Score: ${score}`;
+      bestEl.textContent = `Best: ${leaderboard[0]?.score || 0}`;
+      renderLeaderboard();
+    }
+
+    function getPlayerName() {
+      const lastName = localStorage.getItem(nameKey) || "";
+      const input = window.prompt("Enter your name for the leaderboard:", lastName);
+      const name = input ? input.trim() : "";
+      if (name) {
+        localStorage.setItem(nameKey, name);
+        return name;
+      }
+      return "Player";
+    }
+
+    function recordScore() {
+      const name = getPlayerName();
+      leaderboard.push({ name, score });
+      leaderboard.sort((a, b) => b.score - a.score);
+      leaderboard = leaderboard.slice(0, 5);
+      saveLeaderboard();
+      updateScoreDisplay();
+    }
 
     function resetBricks() {
       bricks = [];
@@ -115,8 +239,10 @@
       ball.speedMult = 1;
       alive = true;
       clearedRows = new Set();
+      score = 0;
       resetBricks();
       overlay.classList.remove("show");
+      updateScoreDisplay();
     }
 
     canvas.addEventListener("mousemove", e => {
@@ -129,6 +255,10 @@
       if (!alive) resetGame();
     });
 
+    document.addEventListener("keydown", e => {
+      if (e.code === "KeyR" && !alive) resetGame();
+    });
+
     function update(dt) {
       if (!alive) return;
       ball.x += ball.vx * dt;
@@ -139,6 +269,7 @@
       if (ball.y - ball.r > canvas.height) {
         alive = false;
         overlay.classList.add("show");
+        recordScore();
         return;
       }
 
@@ -149,10 +280,13 @@
       }
 
       let newlyCleared = 0;
+      let scored = false;
       for (let i = bricks.length - 1; i >= 0; i--) {
         const b = bricks[i];
         if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w && ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
           bricks.splice(i, 1);
+          score += 10;
+          scored = true;
           ball.vy *= -1;
         }
       }
@@ -169,7 +303,10 @@
       if (newlyCleared > 0) {
         ball.vx *= 1 + newlyCleared * 0.05;
         ball.vy *= 1 + newlyCleared * 0.05;
+        score += newlyCleared * 50;
+        scored = true;
       }
+      if (scored) updateScoreDisplay();
       if (bricks.length === 0) resetBricks();
     }
 
@@ -201,6 +338,7 @@
       requestAnimationFrame(loop);
     }
 
+    loadLeaderboard();
     resetGame();
     requestAnimationFrame(loop);
   </script>

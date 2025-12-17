@@ -1006,7 +1006,7 @@ function App() {
           }}
         >
           <Divider flexItem sx={{ flexBasis: 60, borderColor: 'rgba(255,255,255,0.08)' }} />
-          <Typography variant="body2">Project of CCIS students</Typography>
+          <Typography variant="body2">Copyright 2025 ROLEN L. EGUALAN</Typography>
           <Divider flexItem sx={{ flexBasis: 60, borderColor: 'rgba(255,255,255,0.08)' }} />
         </Box>
       </Container>
