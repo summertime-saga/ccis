@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
@@ -468,6 +468,7 @@ function App() {
   const [codeBlocks, setCodeBlocks] = useState([]);
   const [codeLoading, setCodeLoading] = useState(false);
   const [codeError, setCodeError] = useState('');
+  const iframeRef = useRef(null);
   const isDialogOpen = Boolean(openGame);
   const isCodeDialogOpen = Boolean(openCodeGame);
   const handleCloseGame = () => setOpenGame(null);
@@ -475,6 +476,11 @@ function App() {
   const Transition = forwardRef(function Transition(props, ref) {
     return <Slide direction="up" ref={ref} {...props} />;
   });
+  const focusGameFrame = () => {
+    if (iframeRef.current) {
+      iframeRef.current.focus();
+    }
+  };
 
   useEffect(() => {
     if (!openCodeGame) {
@@ -510,6 +516,14 @@ function App() {
       isActive = false;
     };
   }, [openCodeGame]);
+
+  useEffect(() => {
+    if (!openGame) return;
+    const focusSoon = () => focusGameFrame();
+    const timer = setTimeout(focusSoon, 200);
+    requestAnimationFrame(focusSoon);
+    return () => clearTimeout(timer);
+  }, [openGame]);
 
   return (
     <Box sx={{ minHeight: '100vh', pb: 8, position: 'relative', overflowX: 'hidden' }}>
@@ -774,6 +788,7 @@ function App() {
             open={isDialogOpen}
             onClose={handleCloseGame}
             TransitionComponent={Transition}
+            TransitionProps={{ onEntered: focusGameFrame }}
             keepMounted={false}
             ModalProps={{ disableScrollLock: true }}
             PaperProps={{
@@ -824,6 +839,9 @@ function App() {
                   title={openGame.title}
                   allowFullScreen
                   loading="lazy"
+                  tabIndex={0}
+                  ref={iframeRef}
+                  onLoad={focusGameFrame}
                   sx={{
                     border: 0,
                     width: '100%',
