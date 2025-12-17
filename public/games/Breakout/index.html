@@ -139,7 +139,7 @@
     const nameKey = "breakoutPlayerName";
 
     const paddle = { w: 100, h: 14, x: canvas.width / 2 - 50, y: canvas.height - 30 };
-    const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 8, vx: 200, vy: -220, speedMult: 1 };
+    const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 8, vx: 360, vy: -380, speedMult: 1 };
     const rows = 5, cols = 10;
     const brick = { w: canvas.width / cols, h: 20, pad: 2 };
     const colors = ["#ff4b4b", "#ff9f1c", "#ffd447", "#4ecdc4", "#5fa8ff"];
@@ -234,8 +234,8 @@
       paddle.x = canvas.width / 2 - paddle.w / 2;
       ball.x = canvas.width / 2;
       ball.y = canvas.height / 2;
-      ball.vx = 200;
-      ball.vy = -220;
+      ball.vx = 360;
+      ball.vy = -380;
       ball.speedMult = 1;
       alive = true;
       clearedRows = new Set();
@@ -276,7 +276,7 @@
       if (ball.y + ball.r >= paddle.y && ball.y - ball.r <= paddle.y + paddle.h && ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
         ball.vy = -Math.abs(ball.vy);
         const hitPos = (ball.x - paddle.x) / paddle.w - 0.5;
-        ball.vx = (200 + Math.abs(ball.vy) * 0.2) * hitPos * 2;
+        ball.vx = (320 + Math.abs(ball.vy) * 0.2) * hitPos * 2;
       }
 
       let newlyCleared = 0;
