@@ -58,6 +58,35 @@
       font-weight: bold;
       box-shadow: 0 0 10px rgba(125,214,255,0.4);
     }
+    #stats {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #1f2b3d;
+      border-radius: 8px;
+      background: #0f1626;
+    }
+    #stats .row { font-weight: bold; letter-spacing: 0.5px; margin-bottom: 6px; }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #1f2b3d;
+      border-radius: 8px;
+      background: #0f1626;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #9fb0d8;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9fb0d8;
+    }
   </style>
 </head>
 <body>
@@ -69,20 +98,75 @@
     <div id="info">
       Player moves left paddle with W/S keys. Right paddle is an AI that chases the ball with a slight delay. First to keep the ball in play scores when the opponent misses; ball resets center each point.<br>
       Project of CCIS students
+      <div id="stats">
+        <div class="row">Your score: <span id="player-score">0</span></div>
+        <div class="row">Best: <span id="best">0</span></div>
+        <div class="row">Race to 5 points per match.</div>
+      </div>
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
+    const playerScoreEl = document.getElementById("player-score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
     const keys = { w: false, s: false };
+
+    const leaderboard = createLeaderboard({
+      storageKey: "pongLeaderboard",
+      nameKey: "pongPlayerName",
+      listElement: leaderboardListEl
+    });
+    const maxPoints = 5;
 
     const paddleH = 70, paddleW = 12;
     const player = { x: 20, y: canvas.height / 2 - paddleH / 2, speed: 260 };
     const ai = { x: canvas.width - 32, y: canvas.height / 2 - paddleH / 2, speed: 240 };
     const ball = { x: canvas.width / 2, y: canvas.height / 2, r: 7, vx: 220, vy: 160 };
     const score = { player: 0, ai: 0 };
+    let matchOver = false;
+
+    function updateHud(renderBoard = false) {
+      scoreEl.textContent = `${score.player} - ${score.ai}`;
+      playerScoreEl.textContent = score.player;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      if (renderBoard) leaderboard.render();
+    }
+
+    function resetScores() {
+      score.player = 0;
+      score.ai = 0;
+      updateHud();
+    }
+
+    function recordRun() {
+      leaderboard.record(score.player);
+      updateHud(true);
+    }
+
+    function awardPoint(side) {
+      if (side === "ai") {
+        score.ai += 1;
+        resetBall(1);
+      } else {
+        score.player += 1;
+        resetBall(-1);
+      }
+      updateHud();
+      if (score.player >= maxPoints || score.ai >= maxPoints) {
+        recordRun();
+        resetScores();
+        resetBall();
+      }
+    }
 
     document.addEventListener("keydown", e => {
       if (e.code === "KeyW") keys.w = true;
@@ -137,13 +221,9 @@
 
       // Scoring
       if (ball.x < 0) {
-        score.ai += 1;
-        scoreEl.textContent = `${score.player} - ${score.ai}`;
-        resetBall(1);
+        awardPoint("ai");
       } else if (ball.x > canvas.width) {
-        score.player += 1;
-        scoreEl.textContent = `${score.player} - ${score.ai}`;
-        resetBall(-1);
+        awardPoint("player");
       }
     }
 
@@ -179,6 +259,9 @@
       requestAnimationFrame(loop);
     }
 
+    leaderboard.load();
+    leaderboard.render();
+    updateHud(true);
     resetBall();
     requestAnimationFrame(loop);
   </script>

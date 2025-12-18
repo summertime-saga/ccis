@@ -92,13 +92,34 @@
       font-weight: bold;
       box-shadow: 0 0 10px rgba(255, 212, 71, 0.5);
     }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: rgba(255,255,255,0.15);
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #0d1b2a;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #0d1b2a;
+    }
   </style>
 </head>
 <body>
   <div class="layout">
     <div id="container">
       <canvas id="game" width="480" height="720"></canvas>
-      <div id="hud">Score: <span id="score">0</span></div>
+      <div id="hud">Score: <span id="score">0</span> | Best: <span id="best">0</span></div>
       <div id="overlay">
         <div>
           <div id="over-text">Game Over</div>
@@ -110,16 +131,29 @@
     <div id="info">
       Click or press Space to flap upward, glide through the gaps, and avoid pipes or the ground/ceiling. Score +1 per pipe passed.<br>
       Project of CCIS students
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
     const finalScoreEl = document.getElementById("final-score");
     const overlay = document.getElementById("overlay");
     const restartBtn = document.getElementById("restart");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "flappyLeaderboard",
+      nameKey: "flappyPlayerName",
+      listElement: leaderboardListEl
+    });
 
     const player = {
       x: 120,
@@ -140,12 +174,19 @@
     let lastTime = 0;
     let alive = true;
 
+    function updateHud(renderBoard = false) {
+      scoreEl.textContent = score;
+      finalScoreEl.textContent = score;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      if (renderBoard) leaderboard.render();
+    }
+
     function resetGame() {
       player.y = canvas.height / 2;
       player.vy = 0;
       pipes.length = 0;
       score = 0;
-      scoreEl.textContent = score;
+      updateHud(true);
       spawnTimer = 0;
       lastTime = performance.now();
       alive = true;
@@ -220,7 +261,7 @@
         if (!p.scored && p.x + pipeWidth < player.x - player.size / 2) {
           p.scored = true;
           score += 1;
-          scoreEl.textContent = score;
+          updateHud();
         }
       }
     }
@@ -229,6 +270,8 @@
       if (!alive) return;
       alive = false;
       finalScoreEl.textContent = score;
+      leaderboard.record(score);
+      updateHud(true);
       overlay.classList.add("show");
     }
 
@@ -272,6 +315,10 @@
     }
 
     restartBtn.addEventListener("click", resetGame);
+
+    leaderboard.load();
+    leaderboard.render();
+    updateHud(true);
     resetGame();
     requestAnimationFrame(loop);
   </script>

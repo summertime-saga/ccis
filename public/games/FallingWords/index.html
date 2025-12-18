@@ -85,23 +85,94 @@
       font-weight: bold;
       box-shadow: 0 0 10px rgba(255,212,71,0.45);
     }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    #overlay.show {
+      visibility: visible;
+      opacity: 1;
+    }
+    .modal {
+      background: #0e1424;
+      border: 1px solid #1f2b3a;
+      padding: 20px 24px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+    }
+    .modal h2 { margin: 0 0 8px; letter-spacing: 1px; color: #ffd447; }
+    button {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      font-family: "Courier New", monospace;
+      background: linear-gradient(135deg, #ffd447, #7fffd4);
+      color: #0d1320;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(0,0,0,0.45); }
+    button:active { transform: translateY(1px); }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid #1f2b3a;
+      border-radius: 10px;
+      background: rgba(15, 23, 38, 0.55);
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #d6deff;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9fb0d8;
+    }
   </style>
 </head>
 <body>
   <div class="layout">
     <div>
       <div id="game">
-        <div id="hud">Score: <span id="score">0</span></div>
+        <div id="hud">Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Best: <span id="best">0</span></div>
       </div>
       <input id="input" type="text" autocomplete="off" placeholder="Type the falling word..." />
       <div id="target-display"></div>
+      <div id="overlay">
+        <div class="modal">
+          <h2>Game Over</h2>
+          <p>Final Score: <span id="final-score">0</span></p>
+          <button id="restart">Play Again</button>
+        </div>
+      </div>
     </div>
     <div id="info">
       Type the falling words before they hit the bottom. Match letters in order; correct words grant +10 points. Letters you typed highlight in green. Words missed deduct 10 points.<br>
       Project of CCIS students
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const wordsList = [
       "apple","house","water","river","stone","light","night","music","happy","green",
@@ -113,15 +184,30 @@
 
     const gameEl = document.getElementById("game");
     const scoreEl = document.getElementById("score");
+    const livesEl = document.getElementById("lives");
+    const bestEl = document.getElementById("best");
     const inputEl = document.getElementById("input");
     const targetDisplay = document.getElementById("target-display");
+    const overlay = document.getElementById("overlay");
+    const finalScoreEl = document.getElementById("final-score");
+    const restartBtn = document.getElementById("restart");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "fallingWordsLeaderboard",
+      nameKey: "fallingWordsPlayerName",
+      listElement: leaderboardListEl
+    });
 
     let words = [];
     let spawnTimer = 0;
     let score = 0;
+    let lives = 3;
+    let gameOver = false;
     let last = 0;
 
     function spawnWord() {
+      if (gameOver) return;
       const text = wordsList[Math.floor(Math.random() * wordsList.length)];
       const el = document.createElement("div");
       el.className = "word";
@@ -144,7 +230,15 @@
       targetDisplay.innerHTML = `<span class="typed">${matched}</span><span class="remaining">${remaining}</span>`;
     }
 
+    function updateHud(renderBoard = false) {
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      if (renderBoard) leaderboard.render();
+    }
+
     function update(dt) {
+      if (gameOver) return;
       spawnTimer += dt;
       if (spawnTimer > 1.6) {
         spawnWord();
@@ -159,12 +253,19 @@
           gameEl.removeChild(w.el);
           words.splice(i, 1);
           score = Math.max(0, score - 10);
-          scoreEl.textContent = score;
+          lives = Math.max(0, lives - 1);
+          if (lives <= 0) {
+            updateHud(true);
+            endRun();
+            return;
+          }
+          updateHud();
         }
       }
     }
 
     function onInput() {
+      if (gameOver) return;
       if (!words[0]) return;
       const target = words[0];
       const typed = inputEl.value;
@@ -176,7 +277,7 @@
         gameEl.removeChild(target.el);
         words.shift();
         score += 10;
-        scoreEl.textContent = score;
+        updateHud();
         inputEl.value = "";
       }
       updateTargetDisplay();
@@ -184,6 +285,30 @@
 
     inputEl.addEventListener("input", onInput);
     inputEl.addEventListener("keydown", e => { if (e.key === "Enter") inputEl.value = ""; });
+
+    function endRun() {
+      if (gameOver) return;
+      gameOver = true;
+      finalScoreEl.textContent = score;
+      overlay.classList.add("show");
+      leaderboard.record(score);
+      updateHud(true);
+    }
+
+    function resetGame() {
+      words.forEach(w => gameEl.removeChild(w.el));
+      words = [];
+      spawnTimer = 0;
+      score = 0;
+      lives = 3;
+      gameOver = false;
+      last = 0;
+      overlay.classList.remove("show");
+      inputEl.value = "";
+      targetDisplay.textContent = "Type the falling word...";
+      updateHud(true);
+      spawnWord();
+    }
 
     function loop(ts) {
       if (!last) last = ts;
@@ -193,7 +318,12 @@
       requestAnimationFrame(loop);
     }
 
-    spawnWord();
+    restartBtn.addEventListener("click", resetGame);
+
+    leaderboard.load();
+    leaderboard.render();
+    updateHud(true);
+    resetGame();
     requestAnimationFrame(loop);
     inputEl.focus();
   </script>

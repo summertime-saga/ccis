@@ -38,6 +38,36 @@
       color: #d1d1d1;
       text-shadow: 0 0 6px rgba(255,255,255,0.2);
     }
+    #stats {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #222;
+      border-radius: 8px;
+      background: #0c0c0c;
+    }
+    #stats .row { margin-bottom: 6px; font-weight: bold; letter-spacing: 0.5px; }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #222;
+      border-radius: 8px;
+      background: #0c0c0c;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #9fb0b0;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #7f8a8a;
+    }
+    #status { margin-top: 10px; font-size: 13px; color: #8ce99a; min-height: 18px; }
     #menu-link {
       display: inline-block;
       margin-top: 12px;
@@ -57,17 +87,46 @@
     <div id="info">
       Navigate the red dot from top-left to the green goal at bottom-right. Use Arrow keys; walls block movement. Maze is generated with DFS each load.<br>
       Project of CCIS students
+      <div id="stats">
+        <div class="row">Time: <span id="time">0.0</span>s</div>
+        <div class="row">Moves: <span id="moves">0</span></div>
+        <div class="row">Score: <span id="score">0</span></div>
+        <div class="row">Best: <span id="best">0</span></div>
+      </div>
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
+      <div id="status"></div>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const timeEl = document.getElementById("time");
+    const movesEl = document.getElementById("moves");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+    const statusEl = document.getElementById("status");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "mazeLeaderboard",
+      nameKey: "mazePlayerName",
+      listElement: leaderboardListEl
+    });
     const rows = 20, cols = 20;
     const cell = canvas.width / cols;
     const maze = Array.from({ length: rows }, () => Array(cols).fill(0));
 
     function generateMaze() {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          maze[r][c] = 0;
+        }
+      }
       const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
       const stack = [[0, 0]];
       const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
@@ -89,25 +148,76 @@
       maze[rows - 1][cols - 1] = 1;
     }
 
+    function calculateScore(elapsedSeconds, moveCount) {
+      return Math.max(0, Math.round(1000 - elapsedSeconds * 20 - moveCount * 3));
+    }
+
+    function updateStats(renderBoard = false) {
+      const elapsed = (performance.now() - startTime) / 1000;
+      score = calculateScore(elapsed, moves);
+      timeEl.textContent = elapsed.toFixed(1);
+      movesEl.textContent = moves;
+      scoreEl.textContent = score;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      if (renderBoard) leaderboard.render();
+    }
+
+    function showStatus(message, color = "#8ce99a") {
+      statusEl.textContent = message;
+      statusEl.style.color = color;
+      if (statusTimer) clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    }
+
     const player = { r: 0, c: 0 };
     const goal = { r: rows - 1, c: cols - 1 };
+    let moves = 0;
+    let startTime = performance.now();
+    let score = 0;
+    let statusTimer = null;
+
+    function startRun() {
+      generateMaze();
+      player.r = 0;
+      player.c = 0;
+      moves = 0;
+      startTime = performance.now();
+      updateStats(true);
+      showStatus("New maze ready. Reach the goal!", "#8ce99a");
+    }
+
+    function handleWin() {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const runScore = calculateScore(elapsed, moves);
+      leaderboard.record(runScore);
+      updateStats(true);
+      showStatus(`Goal reached in ${elapsed.toFixed(1)}s with ${moves} moves. Score saved!`, "#ffd447");
+      startRun();
+    }
 
     document.addEventListener("keydown", e => {
-      const moves = { ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1] };
-      if (!moves[e.code]) return;
-      const [dr, dc] = moves[e.code];
+      const moveMap = { ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1] };
+      if (e.code === "KeyR" || e.code === "KeyN") {
+        startRun();
+        return;
+      }
+      if (!moveMap[e.code]) return;
+      const [dr, dc] = moveMap[e.code];
       const nr = player.r + dr;
       const nc = player.c + dc;
       if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && maze[nr][nc]) {
         player.r = nr;
         player.c = nc;
+        moves += 1;
+        updateStats();
         if (player.r === goal.r && player.c === goal.c) {
-          setTimeout(() => alert("You reached the goal!"), 20);
+          handleWin();
         }
       }
     });
 
     function draw() {
+      updateStats();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -129,7 +239,9 @@
       requestAnimationFrame(draw);
     }
 
-    generateMaze();
+    leaderboard.load();
+    leaderboard.render();
+    startRun();
     requestAnimationFrame(draw);
   </script>
 </body>

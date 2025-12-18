@@ -68,29 +68,117 @@
       font-weight: bold;
       box-shadow: 0 0 10px rgba(252,163,17,0.4);
     }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #1f2a44;
+      border-radius: 8px;
+      background: #0f1a2b;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #d4ddff;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #d4ddff;
+    }
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    #overlay.show { visibility: visible; opacity: 1; }
+    .modal {
+      background: #0f1626;
+      padding: 20px 24px;
+      border-radius: 10px;
+      border: 1px solid #1f2a44;
+      text-align: center;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.45);
+    }
+    .modal h2 { margin: 0 0 8px; letter-spacing: 1px; }
+    button {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      font-family: "Courier New", monospace;
+      background: linear-gradient(135deg, #fca311, #7dd6ff);
+      color: #14213d;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(0,0,0,0.45); }
+    button:active { transform: translateY(1px); }
   </style>
 </head>
 <body>
   <div class="layout">
     <div>
-      <div id="hud">Score: <span id="score">0</span> | Time: <span id="time">30</span>s</div>
+      <div id="hud">Score: <span id="score">0</span> | Best: <span id="best">0</span> | Time: <span id="time">30</span>s</div>
       <div id="grid"></div>
     </div>
     <div id="info">
       Every 800ms a random hole turns active. Click active holes to score +1; clicking inactive holes deducts 1. You have 30 seconds—highest score wins.<br>
       Project of CCIS students
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
+  <div id="overlay">
+    <div class="modal">
+      <h2>Time!</h2>
+      <p>Final Score: <span id="final-score">0</span></p>
+      <button id="restart">Play Again</button>
+    </div>
+  </div>
+
+  <script src="../leaderboard.js"></script>
   <script>
     const grid = document.getElementById("grid");
     const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
     const timeEl = document.getElementById("time");
+    const finalScoreEl = document.getElementById("final-score");
+    const overlay = document.getElementById("overlay");
+    const restartBtn = document.getElementById("restart");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "whackAMoleLeaderboard",
+      nameKey: "whackAMolePlayerName",
+      listElement: leaderboardListEl
+    });
     let holes = [];
     let score = 0;
     let timer = 30;
     let intervalId;
     let gameInterval;
+    let gameOver = false;
+
+    function updateHud(renderBoard = false) {
+      scoreEl.textContent = score;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      timeEl.textContent = timer;
+      if (renderBoard) leaderboard.render();
+    }
 
     function setup() {
       grid.innerHTML = "";
@@ -104,8 +192,9 @@
       }
       score = 0;
       timer = 30;
-      scoreEl.textContent = score;
-      timeEl.textContent = timer;
+      gameOver = false;
+      overlay.classList.remove("show");
+      updateHud(true);
       clearIntervals();
       gameInterval = setInterval(randomHole, 800);
       intervalId = setInterval(countdown, 1000);
@@ -118,24 +207,31 @@
       setTimeout(() => holes[idx].classList.remove("active"), 500);
     }
 
+    function finishGame() {
+      if (gameOver) return;
+      gameOver = true;
+      clearIntervals();
+      holes.forEach(h => h.classList.remove("active"));
+      finalScoreEl.textContent = score;
+      overlay.classList.add("show");
+      leaderboard.record(score);
+      updateHud(true);
+    }
+
     function handleClick(div) {
-      if (timer <= 0) return;
+      if (timer <= 0 || gameOver) return;
       if (div.classList.contains("active")) {
         score += 1;
       } else {
         score = Math.max(0, score - 1);
       }
-      scoreEl.textContent = score;
+      updateHud();
     }
 
     function countdown() {
       timer -= 1;
-      timeEl.textContent = timer;
-      if (timer <= 0) {
-        clearIntervals();
-        holes.forEach(h => h.classList.remove("active"));
-        alert(`Time! Final score: ${score}`);
-      }
+      updateHud();
+      if (timer <= 0) finishGame();
     }
 
     function clearIntervals() {
@@ -143,6 +239,10 @@
       if (gameInterval) clearInterval(gameInterval);
     }
 
+    restartBtn.addEventListener("click", setup);
+
+    leaderboard.load();
+    leaderboard.render();
     setup();
   </script>
 </body>

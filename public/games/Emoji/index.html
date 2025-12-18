@@ -41,6 +41,7 @@
       margin-bottom: 12px;
       font-size: 14px;
       color: #b8c7e0;
+      flex-wrap: wrap;
     }
     #grid {
       display: grid;
@@ -136,6 +137,27 @@
       line-height: 1.5;
       text-align: left;
     }
+    .leaderboard {
+      margin-top: 12px;
+      padding: 10px;
+      background: rgba(34, 49, 70, 0.55);
+      border: 1px solid #223146;
+      border-radius: 10px;
+    }
+    .leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #9bb2d6;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9bb2d6;
+    }
     .side-info .project {
       margin-top: 8px;
       color: #9bb2d6;
@@ -161,12 +183,18 @@
       <div class="stats">
         <div>Time: <span id="time">0.0</span>s</div>
         <div>Matches: <span id="matches">0</span>/8</div>
+        <div>Score: <span id="score">0</span></div>
+        <div>Best: <span id="best">0</span></div>
       </div>
       <div id="grid"></div>
     </div>
     <div class="side-info">
       Flip two cards to find pairs. Matches stay face up; mismatches flip after a second. Clear all pairs as fast as you can!<br>
       <span class="project">Project of CCIS students</span>
+      <div class="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
@@ -174,24 +202,36 @@
     <div class="modal">
       <h2>You Win!</h2>
       <p>Total Time: <span id="final-time">0.0</span>s</p>
+      <p>Score: <span id="final-score">0</span></p>
       <button id="restart">Play Again</button>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const grid = document.getElementById("grid");
     const timeEl = document.getElementById("time");
     const matchesEl = document.getElementById("matches");
     const overlay = document.getElementById("overlay");
     const finalTimeEl = document.getElementById("final-time");
+    const finalScoreEl = document.getElementById("final-score");
     const restartBtn = document.getElementById("restart");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
 
     const emojiSet = ["🚀","🐱","🍕","🌵","⚽","💎","🎸","🎈"];
+    const leaderboard = createLeaderboard({
+      storageKey: "emojiMemoryLeaderboard",
+      nameKey: "emojiMemoryPlayerName",
+      listElement: leaderboardListEl
+    });
     let cards = [];
     let firstCard = null;
     let secondCard = null;
     let lockBoard = false;
     let matches = 0;
+    let score = 0;
     let startTime = null;
     let timerId = null;
 
@@ -216,6 +256,16 @@
         clearInterval(timerId);
         timerId = null;
       }
+    }
+
+    function calculateScore(seconds) {
+      return Math.max(0, Math.round(6000 / Math.max(1, seconds)));
+    }
+
+    function updateScoreDisplay() {
+      scoreEl.textContent = score;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      leaderboard.render();
     }
 
     function createCard(emoji) {
@@ -255,11 +305,26 @@
       lockBoard = false;
       matches = 0;
       matchesEl.textContent = matches;
+      score = 0;
+      updateScoreDisplay();
       stopTimer();
       startTime = null;
       timeEl.textContent = "0.0";
       overlay.classList.remove("show");
       setupBoard();
+    }
+
+    function finishRun() {
+      stopTimer();
+      const elapsedSeconds = startTime ? (performance.now() - startTime) / 1000 : Number(timeEl.textContent) || 0;
+      const runScore = calculateScore(elapsedSeconds || 0.1);
+      score = runScore;
+      finalTimeEl.textContent = elapsedSeconds.toFixed(1);
+      finalScoreEl.textContent = runScore;
+      overlay.classList.add("show");
+      leaderboard.record(runScore);
+      updateScoreDisplay();
+      startTime = null;
     }
 
     function onCardClick(e) {
@@ -300,10 +365,7 @@
       matches++;
       matchesEl.textContent = matches;
       if (matches === emojiSet.length) {
-        stopTimer();
-        const totalTime = timeEl.textContent;
-        finalTimeEl.textContent = totalTime;
-        overlay.classList.add("show");
+        finishRun();
       }
       resetTurn();
     }
@@ -318,6 +380,10 @@
     }
 
     restartBtn.addEventListener("click", resetGame);
+
+    leaderboard.load();
+    leaderboard.render();
+    updateScoreDisplay();
     resetGame();
   </script>
 </body>

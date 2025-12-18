@@ -47,6 +47,46 @@
       padding: 12px;
       box-shadow: 0 10px 20px rgba(0,0,0,0.3);
     }
+    #stats {
+      width: 240px;
+      background: #241730;
+      border: 1px solid #3b2c4d;
+      border-radius: 10px;
+      padding: 12px;
+      color: #d9c9ff;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    #stats .stat { font-weight: bold; letter-spacing: 0.5px; margin-bottom: 6px; }
+    #stats .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    button {
+      padding: 8px 10px;
+      border: none;
+      border-radius: 8px;
+      font-family: "Courier New", monospace;
+      font-weight: bold;
+      cursor: pointer;
+      background: linear-gradient(135deg, #8ef4ff, #7dd6ff);
+      color: #1b1325;
+      box-shadow: 0 8px 16px rgba(142,244,255,0.35);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(142,244,255,0.45); }
+    button:active { transform: translateY(1px); }
+    #leaderboard { margin-top: 6px; }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #a68ed6;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #a68ed6;
+    }
     .upgrade {
       display: flex;
       justify-content: space-between;
@@ -86,17 +126,40 @@
       <div id="game">Click to earn Gold<br><br>Gold: <span id="gold">0</span><br>GPS: <span id="gps">0</span></div>
     </div>
     <div id="shop"></div>
+    <div id="stats">
+      <div class="stat">Score (Gold): <span id="score">0</span></div>
+      <div class="stat">Best: <span id="best">0</span></div>
+      <div class="actions">
+        <button id="save-score">Save score</button>
+      </div>
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
+    </div>
     <div id="info">
       Click the center panel for +1 Gold. Buy upgrades for passive Gold Per Second: Auto-Clicker (+1/sec), Miner (+5/sec), Factory (+20/sec). Costs rise as you buy more.<br>
       Project of CCIS students
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const goldEl = document.getElementById("gold");
     const gpsEl = document.getElementById("gps");
     const gameEl = document.getElementById("game");
     const shopEl = document.getElementById("shop");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+    const saveScoreBtn = document.getElementById("save-score");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "cookieClickerLeaderboard",
+      nameKey: "cookieClickerPlayerName",
+      listElement: leaderboardListEl,
+      format: value => Math.floor(value)
+    });
 
     let gold = 0;
     const upgrades = [
@@ -132,8 +195,10 @@
     }
 
     function updateGold() {
-      goldEl.textContent = gold;
+      goldEl.textContent = Math.floor(gold);
       gpsEl.textContent = gps().toFixed(1);
+      scoreEl.textContent = Math.floor(gold);
+      bestEl.textContent = leaderboard.format(leaderboard.best());
     }
 
     function gps() {
@@ -145,11 +210,22 @@
       updateGold();
     }
 
+    function saveScore() {
+      const current = Math.floor(gold);
+      if (current <= 0) return;
+      leaderboard.record(current);
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      leaderboard.render();
+    }
+
     gameEl.addEventListener("click", () => {
       gold += 1;
       updateGold();
     });
+    saveScoreBtn.addEventListener("click", saveScore);
 
+    leaderboard.load();
+    leaderboard.render();
     renderShop();
     updateGold();
     setInterval(tick, 100);

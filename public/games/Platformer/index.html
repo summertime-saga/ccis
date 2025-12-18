@@ -38,6 +38,36 @@
       color: #d5e5ff;
       text-shadow: 0 0 6px rgba(255,255,255,0.2);
     }
+    #stats {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #183049;
+      border-radius: 8px;
+      background: #0c1a2b;
+    }
+    #stats .row { font-weight: bold; letter-spacing: 0.5px; margin-bottom: 6px; }
+    #leaderboard {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #183049;
+      border-radius: 8px;
+      background: #0c1a2b;
+    }
+    #leaderboard .label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #9fb1d8;
+      margin-bottom: 6px;
+    }
+    #leaderboard-list { margin: 0; padding-left: 18px; }
+    #leaderboard-list li { margin-bottom: 4px; }
+    #leaderboard-list li.empty {
+      list-style: none;
+      padding-left: 0;
+      color: #9fb1d8;
+    }
+    #status { margin-top: 10px; min-height: 18px; font-size: 13px; color: #ffd447; }
     #menu-link {
       display: inline-block;
       margin-top: 12px;
@@ -59,12 +89,32 @@
     <div id="info">
       Move with A/D keys, jump with Space. Land on platforms; avoid falling into the red lava. Grab the yellow coin on the top platform to win.<br>
       Project of CCIS students
+      <div id="stats">
+        <div class="row">Score: <span id="score">0</span></div>
+        <div class="row">Best: <span id="best">0</span></div>
+      </div>
+      <div id="leaderboard">
+        <div class="label">Leaderboard</div>
+        <ol id="leaderboard-list"></ol>
+      </div>
+      <div id="status"></div>
     </div>
   </div>
 
+  <script src="../leaderboard.js"></script>
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const leaderboardListEl = document.getElementById("leaderboard-list");
+    const statusEl = document.getElementById("status");
+
+    const leaderboard = createLeaderboard({
+      storageKey: "platformerLeaderboard",
+      nameKey: "platformerPlayerName",
+      listElement: leaderboardListEl
+    });
 
     const player = { x: 60, y: 300, w: 28, h: 28, vx: 0, vy: 0, onGround: false };
     const gravity = 900;
@@ -83,8 +133,28 @@
     const coin = { x: 590, y: 70, r: 12, taken: false };
 
     const keys = { a: false, d: false, space: false };
+    let score = 0;
+    let startTime = performance.now();
+    let statusTimer = null;
+
+    function updateHud(renderBoard = false) {
+      scoreEl.textContent = score;
+      bestEl.textContent = leaderboard.format(leaderboard.best());
+      if (renderBoard) leaderboard.render();
+    }
+
+    function showStatus(message, color = "#ffd447") {
+      statusEl.textContent = message;
+      statusEl.style.color = color;
+      if (statusTimer) clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => { statusEl.textContent = ""; }, 2500);
+    }
 
     document.addEventListener("keydown", e => {
+      if (e.code === "KeyR") {
+        startRun("Run restarted.");
+        return;
+      }
       if (e.code === "KeyA") keys.a = true;
       if (e.code === "KeyD") keys.d = true;
       if (e.code === "Space") { keys.space = true; e.preventDefault(); }
@@ -104,7 +174,33 @@
       coin.taken = false;
     }
 
+    function startRun(message) {
+      reset();
+      score = 0;
+      startTime = performance.now();
+      updateHud(true);
+      if (message) showStatus(message, "#7dd6ff");
+    }
+
+    function handleWin() {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const runScore = Math.max(0, Math.round(1500 - elapsed * 80));
+      score = runScore;
+      leaderboard.record(runScore);
+      updateHud(true);
+      showStatus(`Coin grabbed in ${elapsed.toFixed(1)}s! Score saved.`, "#ffd447");
+      startRun();
+    }
+
+    function handleDeath() {
+      showStatus("You fell in the lava. Run reset.", "#ff7b7b");
+      startRun();
+    }
+
     function update(dt) {
+      const elapsed = (performance.now() - startTime) / 1000;
+      score = Math.max(0, Math.round(1500 - elapsed * 80));
+      updateHud();
       player.vx = (keys.a ? -1 : 0) * moveSpeed + (keys.d ? 1 : 0) * moveSpeed;
       if (keys.space && player.onGround) {
         player.vy = jumpStrength;
@@ -134,16 +230,14 @@
       }
 
       if (player.y + player.h > lava.y) {
-        alert("You fell in the lava! Restarting.");
-        reset();
+        handleDeath();
       }
 
       const dx = player.x + player.w / 2 - (coin.x);
       const dy = player.y + player.h / 2 - (coin.y);
       if (!coin.taken && Math.hypot(dx, dy) < coin.r + player.w / 2) {
         coin.taken = true;
-        alert("You Win!");
-        reset();
+        handleWin();
       }
     }
 
@@ -179,7 +273,9 @@
       requestAnimationFrame(loop);
     }
 
-    reset();
+    leaderboard.load();
+    leaderboard.render();
+    startRun("Reach the yellow coin!");
     requestAnimationFrame(loop);
   </script>
 </body>
